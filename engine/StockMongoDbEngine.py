@@ -40,9 +40,6 @@ class StockMongoDbEngine(object):
 
 
 
-    def getStockDaysDb(self):
-        db = self.client[self.stockDaysDbTuShare]
-        return db
 
     def __init__(self):
 
@@ -149,24 +146,143 @@ class StockMongoDbEngine(object):
         return True
 
 
+    def getTradeDaysByRelativeZero(self, baseDate):
+        """ 基准日期向前找到第一个交易日 """
+
+        baseDateSave = baseDate
+
+        collection = self.getTradeDayTableCollection()
+
+        baseDate = datetime.strptime(baseDate, '%Y-%m-%d')
+        flt = {'datetime':{'$lte':baseDate}}
+
+        try:
+            cursor = collection.find(flt).sort('datetime', pymongo.DESCENDING)
+        except Exception as ex:
+            print("MongoDB Exception({0}): @_getTradeDaysByRelativeZero({1})".format(str(ex) + ', ' + str(ex.details), baseDateSave))
+            return None
+
+        for d in cursor:
+            if d['tradeDay']:
+                return [d]
+
+        return None
+
+
+    def getDaysLatestDate(self):
+        """ 获取数据库里交易日数据的最新日期，不是交易日 """
+
+        while True:
+            try:
+                cursor = self.findTradeDays()
+                if cursor is None: return None
+
+                cursor = cursor.sort('datetime', pymongo.DESCENDING).limit(1)
+
+                for d in cursor:
+                    return d
+
+                return None
+
+            except Exception as ex:
+                print("MongoDB 异常({0}): 获取最新日期".format(str(ex) + ', ' + str(ex.details)))
+
+                if '无法连接' in str(ex):
+                    print('MongoDB正在启动, 等待60s后重试...')
+                    sleep(60)
+                    continue
+
+                return None
+
+
+    def getTradeDaysByRelativePositive(self, baseDate, n):
+
+        baseDateSave = baseDate
+        nSave = n
+
+        # always get 0 offset trade day
+        baseDate = self.getTradeDaysByRelativeZero(baseDate)
+        if baseDate is None: return None
+
+        # find backward n trade days
+        collection = self.getTradeDayTableCollection()
+
+        flt = {'datetime': {'$gt': baseDate[0]['datetime']}}
+
+        try:
+            cursor = collection.find(flt).sort('datetime', pymongo.ASCENDING)
+        except Exception as ex:
+            print("MongoDB Exception({0}): @_getTradeDaysByRelativePositive({1}, {2})".format(str(ex) + ', ' + str(ex.details), baseDateSave, nSave))
+            return None
+
+        dates = [baseDate[0]]
+        for d in cursor:
+            if d['tradeDay']:
+                dates.append(d)
+
+                n -= 1
+                if n == 0:
+                    return dates
+
+        # 如果数据库里的最新日期不是今日，提醒更新数据, 并返回None
+        date = self.getDaysLatestDate()
+        if date is not None:
+            now = datetime.now()
+            if now > datetime(now.year, now.month, now.day, 18, 0, 0) and Time.dateCmp(date['datetime'], now) != 0:
+               print("数据库里的最新日期不是今日, 请更新历史日线数据")
+               return None
+        return dates
+
+    def getTradeDaysByRelativeNegative(self, baseDate, n):
+
+        baseDateSave = baseDate
+        nSave = n
+
+        # always get 0 offset trade day
+        baseDate = self.getTradeDaysByRelativeZero(baseDate)
+        if baseDate is None: return None
+
+        # find forward n trade days
+        collection = self.getTradeDayTableCollection()
+
+        flt = {'datetime': {'$lt': baseDate[0]['datetime']}}
+
+        try:
+            cursor = collection.find(flt).sort('datetime', pymongo.DESCENDING)
+        except Exception as ex:
+            print("MongoDB Exception({0}): @_getTradeDaysByRelativeNegative({1}, {2})".format(
+                str(ex) + ', ' + str(ex.details), baseDateSave, nSave))
+            return None
+
+        dates = [baseDate[0]]
+        for d in cursor:
+            if d['tradeDay']:
+                dates.append(d)
+
+                n += 1
+                if n == 0:
+                    return dates
+
+        print("数据库里没有{0}向前{1}个交易日的日期数据".format(baseDateSave, abs(nSave)))
+        return None
+
+
     def getTradeDaysByRelative(self, baseDate, n):
         """ 从数据库获取相对日期的交易日数据
             @n: 向前或者向后多少个交易日
             @return: [doc of trade day]
         """
         if n > 0:
-            tradeDays = self._getTradeDaysByRelativePositive(baseDate, n)
+            tradeDays = self.getTradeDaysByRelativePositive(baseDate, n)
         elif n < 0:
-            tradeDays = self._getTradeDaysByRelativeNegative(baseDate, n)
+            tradeDays = self.getTradeDaysByRelativeNegative(baseDate, n)
         else:
-            tradeDays = self._getTradeDaysByRelativeZero(baseDate)
+            tradeDays = self.getTradeDaysByRelativeZero(baseDate)
 
         if tradeDays is None: return None
 
         return tradeDays
 
-    def getabc(self):
-        print("okok")
 
     def getTradeDaysByAbsolute(self, startDate, endDate):
         """ 从数据库获取指定日期区间的交易日数据 """
@@ -186,8 +302,6 @@ class StockMongoDbEngine(object):
                 tradeDays.append(d)
 
         return tradeDays
-
-
 
     def findTradeDays(self, startDate=None, endDate=None):
         collection = self.getTradeDayTableCollection()
@@ -245,5 +359,124 @@ class StockMongoDbEngine(object):
     def getCodeTableCollection(self):
         collection = self.client[self.stockCommonDbTuShare][self.codeTableNameTuShare]
         return collection
+
+    def getStockDaysDb(self):
+        db = self.client[self.stockDaysDbTuShare]
+        return db
+
+    def getCodeDay(self, code, baseDate, name=None):
+        """ 得到个股的当日交易日, 向前贪婪 """
+        collection = self.getStockDaysDb()[code]
+
+        date = datetime.strptime(baseDate + ' 23:00:00', '%Y-%m-%d %H:%M:%S')
+        flt = {'datetime': {'$lt': date}}
+
+        sortMode = pymongo.DESCENDING
+
+        try:
+            cursor = collection.find(flt).sort('datetime', sortMode).limit(1)
+        except Exception as ex:
+            print("MongoDB Exception({0}): @_findOneCodeDaysByZeroRelative{1}:{2}, [{3}, {4}]日线数据".format(
+                str(ex) + ', ' + str(ex.details),
+                code, name,
+                baseDate, n))
+            return None
+
+        for d in cursor:
+            return d['datetime'].strftime('%Y-%m-%d')
+
+        return None
+
+    def getOneCodeDaysByRelative(self, code, indicators, baseDate, n=0, name=None):
+
+        cursor = self.findOneCodeDaysByRelative(code, baseDate, n, name)
+        if cursor is None: return None
+
+        return self.getOneCodeDaysByCursor(cursor, indicators)
+
+    def findOneCodeDaysByRelative(self, code, baseDate, n=0, name=None):
+        """
+            包含当日，也就是说offset 0总是被包含的
+        """
+        # 获取当日日期
+        baseDay = self.getCodeDay(code, baseDate, name)
+        if baseDay is None: return None
+
+        collection = self.getStockDaysDb()[code]
+
+        if n <= 0:
+            date = datetime.strptime(baseDay + ' 23:00:00', '%Y-%m-%d %H:%M:%S')
+            flt = {'datetime': {'$lt': date}}
+
+            sortMode = pymongo.DESCENDING
+        else:
+            date = datetime.strptime(baseDay, '%Y-%m-%d')
+            flt = {'datetime': {'$gte': date}}  # ignore baseDate, no matter its in DB or not
+
+            sortMode = pymongo.ASCENDING
+
+        # 向前贪婪
+        n = abs(n) + 1
+
+        try:
+            cursor = collection.find(flt).sort('datetime', sortMode).limit(n)
+        except Exception as ex:
+            print("MongoDB Exception({0}): @_findOneCodeDaysByRelative{1}:{2}, [{3}, {4}]日线数据".format(
+                str(ex) + ', ' + str(ex.details),
+                code, name,
+                baseDate, n))
+            return None
+
+        # We don't check any thing about if we actually get n days data.
+        # The reason is that we don't know future, as well as 何时股票上市
+
+        return cursor
+
+
+
+    def findOneCodeDays(self, code, startDate, endDate, name=None):
+        collection = self.getStockDaysDb()[code]
+
+        dateStart = datetime.strptime(startDate, '%Y-%m-%d')
+        dateEnd = datetime.strptime(endDate + ' 23:00:00', '%Y-%m-%d %H:%M:%S')
+
+        flt = {'datetime': {'$gte': dateStart,
+                            '$lt': dateEnd}}
+
+        try:
+            cursor = collection.find(flt)
+        except Exception as ex:
+            print(
+                "MongoDB Exception({0}): 查找{1}:{2}, [{3}, {4}]日线数据".format(str(ex) + ', ' + str(ex.details),
+                                                                           code, name,
+                                                                           startDate, endDate))
+            return None
+
+        return cursor
+
+    def getOneCodeDaysByCursor(self, cursor, indicators):
+        try:
+            columns = indicators + ['datetime']
+            if 'adjfactor' not in columns:
+                columns.append('adjfactor')
+
+            df = pd.DataFrame(list(cursor), columns=columns)
+            df = df.dropna(axis=1, how='all') # 去除全为NaN的列，比如指数数据，没有'mf_vol'
+            df = df.set_index('datetime')
+
+        except Exception as ex:
+            return None
+
+        return None if df.empty else df
+
+    def getOneCodeDays(self, code, startDate, endDate, indicators, name=None, raw=False):
+        """
+            通过绝对日期获取个股日线数据
+            @raw: True - not via cache, for called by DB cache
+        """
+        cursor = self.findOneCodeDays(code, startDate, endDate, name)
+        if cursor is None: return None
+
+        return self.getOneCodeDaysByCursor(cursor, indicators)
 
 

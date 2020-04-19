@@ -166,20 +166,25 @@ class StockData:
         ('399005.SZ', '中小板指'),
     ])
 
+    # 可以考虑使用etf 代替板块指数
     funds = {'510050.SH': '50ETF',
              '510300.SH': '300ETF',
              '510500.SH': '500ETF'
              }
 
+    # 板块指数
     sectors = {'000016.SH': '上证50',
                '399300.SZ': '沪深300',
                '399905.SZ': '中证500'
                }
-
-    # 板块指数
     sz50Index = '000016.SH'
     hs300Index = '399300.SZ'
     zz500Index = '399905.SZ'
+
+
+    etf50 = '510050.SH' # 50ETF是2005.02.23上市的
+    etf300 = '510300.SH' # 300ETF是2012.05.28上市的
+    etf500 = '510500.SH' # 500ETF是2013.03.15上市的
 
     # 大盘指数
     shIndex = '000001.SH'
@@ -187,8 +192,19 @@ class StockData:
     cybIndex = '399006.SZ'
     zxbIndex = '399005.SZ'
 
+    paraCode ='002001.SZ'
 
-    # logDetailsEnabled = False
-    # enableOneKeyUpdateWithTicks = True
-    #
-    # defaultHistTicksDataSource = '智能' # '新浪', '腾讯' , '网易', '智能'
+    def getIndex(code):
+        """
+            获取个股对应的大盘指数
+        """
+        if code[-2:] == 'SH': return StockData.shIndex
+
+        if code[:3] == '002': return StockData.zxbIndex
+        if code[:3] == '300': return StockData.cybIndex
+
+        if code[-2:] == 'SZ': return StockData.szIndex
+
+        assert (0)
+        return None
+

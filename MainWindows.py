@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow
 import matplotlib
 
 from data.StockDataSyn import StockDataSyn
+from strategy.KDJ1 import KDJ1
 
 matplotlib.use('Qt5Agg')
 
@@ -50,10 +51,13 @@ class MainWindows(QMainWindow,Ui_MainWindow):
         self.setupUi(self)
         self.show()
         self.stockDataSyn = StockDataSyn()
+        self.kdj1 = KDJ1()
 
     @pyqtSlot()
     def on_pushButtonSelectStock_clicked(self):
-        print("选股")
+        print("kdj选股")
+        self.kdj1.run()
+
 
     @pyqtSlot()
     def on_pushButtonStockData_clicked(self):
