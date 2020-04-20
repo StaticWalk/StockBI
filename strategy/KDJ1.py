@@ -7,15 +7,14 @@ from datetime import datetime, date, timedelta
 from common.Common import StockData
 from engine.StockMongoDbEngine import StockMongoDbEngine
 
-
 class KDJ1(object):
 
     """
     https://www.joinquant.com/view/community/detail/04314dec73ac4a63b67ab6f8e8f57aae?type=2
-    1.首先趋势判断，中证500趋势判断，
+    1.首先趋势判断，eft500趋势判断，
         日线级别kdj金叉多区间，
         上一交易日为大阴线3/5实体（并且50日atr大于2/3平均值），
-        obos（超买超卖指标）小于-100，满足条件则选股
+        obos（超买超卖指标）小于-100，满足条件则选股 （obos通过选取的市值前五百的中小板和创业板股进行计算）
     2.选股 当日9：25-9：30之间高开五个点以上（包含），不含st，开盘前五秒上涨，选出并打印
     """
 
@@ -40,6 +39,9 @@ class KDJ1(object):
         self.obos = -100
         self.gap = -50-14
         self.result = []
+
+        # 是否满足选股条件
+        self.isOk = True
 
     def getDate(self):
         return time.strftime("%Y-%m-%d", time.localtime())
@@ -71,14 +73,13 @@ class KDJ1(object):
         print("kdj数据加载完成")
 
     def run(self):
-        # 加载需要用到的etf500数据
+        # 加载股票日线数据
         self.load()
         # 开盘前运行
         self.before_market_open()
-        # 开盘时运行
-        self.market_open()
-        # 收盘后运行
-        self.after_market_close()
+        if self.isOk:
+            # 开盘时运行
+            self.market_open()
 
     # 计算obos指标
     def processOnObos(self):
@@ -102,7 +103,6 @@ class KDJ1(object):
             df = self.codeDaysDf.get(code)
             if df is None:
                 continue
-
             closes = df['close'][startDate:endDate]
             pctChanges = closes.pct_change().dropna()
 
@@ -117,10 +117,12 @@ class KDJ1(object):
         obos = ups.sum() - downs.sum()
         if obos >= self.obos:
             print("中小板创业板obos: {}".format(obos))
+        else:
+            self.isOk = False
 
     # 开盘前运行函数
     def before_market_open(self):
-        # 校验处理obos
+        # 校验obos
         self.processOnObos()
 
         # 获取etf500的数据
@@ -130,16 +132,19 @@ class KDJ1(object):
         K, D, J = KDJ(df['high'].values, df['low'].values, df['close'].values, adjust=False)
         if K[-1] < D[-1]:
             print("etf500: KDJ不是金叉区间")
+            self.isOk = False
             return
 
         # 上一交易日为大阴线3/5实体
         if df['close'][-2] >= df['open'][-2]:
             print("etf500: 上一交易日不是阴线")
+            self.isOk = False
             return
 
         bodyRatio = abs(df['close'][-2] - df['open'][-2])/abs(df['low'][-2] - df['high'][-2])
         if bodyRatio < self.bodyRatio:
             print("etf500: 上一交易日阴线实体比例: {}".format(bodyRatio))
+            self.isOk = False
             return
 
         # 50日atr大于2/3平均值
@@ -147,33 +152,26 @@ class KDJ1(object):
         atrOverMean = float(atr[-1]/atr[-50:].mean())
         if atrOverMean <= self.atrOverMean:
             print("etf500: 50日atr/平均值: {}".format(atrOverMean))
+            self.isOk = False
             return
 
     #  开盘运行 选股函数
     def market_open(self):
-
         for code in self.sortDf:
             df = self.codeDaysDf.get(code)
             if df is None:
                 continue
 
-            # 选股9：25-9：30之间高开五个点以上（包含），不含st
+            # 选股9：25-9：30之间高开五个点以上（包含）
+            # 运行前已更新为最新数据，所以选取的五百只股票中不会包含st
             openIncrease = (df['open'][-1] - df['close'][-2])/df['close'][-2] * 100
             if openIncrease < 5:
-                return
-
-            # todo solve st
-            # if 'st' in self.stockAllCodes[code] or 'ST' in self._stockAllCodes[code]:
-            #     return
-            # self._preCloses[code] = df['close'][-2]
+                continue
 
             # 设置结果
-            row = [code, self.sortDf[code]]
-            print(row)
+            row = [code, self.codeDaysDf[code]]
+            print(code)
             self.result.append(row)
 
-
-        print()
-
-    # 收盘后运行
-    # def after_market_close():
+        if not len(self.result):
+            print('选股结果为空，无满足条件的股票')

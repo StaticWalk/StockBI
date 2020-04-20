@@ -67,9 +67,6 @@
 #     return df[['40','180','300','400','close','AR','BR']].dropna()
 
 
-
-
-
 #
 # #对价格和ARBR进行可视化
 # def plot_arbr(stock,n=120):
