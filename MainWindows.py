@@ -1,3 +1,4 @@
+import time
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QIcon
@@ -61,12 +62,10 @@ class MainWindows(QMainWindow,Ui_MainWindow):
 
     @pyqtSlot()
     def on_pushButtonStockData_clicked(self):
-        # 更新日线数据已实现
-
-        startData = "2020-04-07"
-        endData = "2020-04-08"
-        # endData = time.strftime("%Y-%m-%d", time.localtime()
-        # self.stockDataSyn.updateMain(startData,endData)
+        # 日线数据更新已实现
+        startData = "2020-04-05"
+        endData = time.strftime("%Y-%m-%d", time.localtime())
+        self.stockDataSyn.updateMain(startData,endData)
 
 if __name__ == '__main__':
 

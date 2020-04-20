@@ -30,7 +30,7 @@ class KDJ1(object):
         self.buy_list = []  # 满足买入条件的股票
         # self.tick_list = []  # 要获取tick的标的
         self.date_list = []
-        self.df = {}
+        self.sortDf = {}
         self.codeDaysDf = {}
 
         # 设置基准日期、阴线实体比例、50日atr平均值、obos阈值
@@ -38,6 +38,8 @@ class KDJ1(object):
         self.bodyRatio = 0.6
         self.atrOverMean = 0.67
         self.obos = -100
+        self.gap = -50-14
+        self.result = []
 
     def getDate(self):
         return time.strftime("%Y-%m-%d", time.localtime())
@@ -56,7 +58,7 @@ class KDJ1(object):
             indexCode = StockData.getIndex(code)
             if indexCode not in [StockData.cybIndex, StockData.zxbIndex]:
                 continue
-            temp = self.mongoDbEngine.getOneCodeDaysByRelative(code, self.indicators, self.getDate(), -64)
+            temp = self.mongoDbEngine.getOneCodeDaysByRelative(code, self.indicators, self.getDate(), self.gap)
             if temp is None:
                 continue
             temp = temp.reindex(index=temp.index[::-1])
@@ -65,7 +67,7 @@ class KDJ1(object):
 
         sortedCodes = sorted(df, key=lambda k: df[k], reverse=True)
 
-        self.df = sortedCodes[:500]
+        self.sortDf = sortedCodes[:500]
         print("kdj数据加载完成")
 
     def run(self):
@@ -96,7 +98,7 @@ class KDJ1(object):
         ups = zeros
         downs = zeros
 
-        for code in self.df:
+        for code in self.sortDf:
             df = self.codeDaysDf.get(code)
             if df is None:
                 continue
@@ -115,19 +117,6 @@ class KDJ1(object):
         obos = ups.sum() - downs.sum()
         if obos >= self.obos:
             print("中小板创业板obos: {}".format(obos))
-            self._canContinue = False
-
-
-    def get_ATR(df,period):
-        atr = ta.ATR(df['high'].values,df['low'].values,df['close'].values,timeperiod = period)
-        atr_mean_list = []
-        for _ in atr:
-            if str(_) == 'nan':
-                atr_mean_list.append(0)
-            else:
-                atr_mean_list.append(_)
-        atr_mean = np.mean(atr_mean_list)
-        return atr[-1],atr_mean
 
     # 开盘前运行函数
     def before_market_open(self):
@@ -135,7 +124,7 @@ class KDJ1(object):
         self.processOnObos()
 
         # 获取etf500的数据
-        df = self.mongoDbEngine.getOneCodeDaysByRelative(StockData.etf500, self.indicators, self.getDate(), -66)
+        df = self.mongoDbEngine.getOneCodeDaysByRelative(StockData.etf500, self.indicators, self.getDate(), self.gap)
         df = df.reindex(index=df.index[::-1])
         # 日线级别kdj金叉多区间
         K, D, J = KDJ(df['high'].values, df['low'].values, df['close'].values, adjust=False)
@@ -160,36 +149,31 @@ class KDJ1(object):
             print("etf500: 50日atr/平均值: {}".format(atrOverMean))
             return
 
+    #  开盘运行 选股函数
+    def market_open(self):
+
+        for code in self.sortDf:
+            df = self.codeDaysDf.get(code)
+            if df is None:
+                continue
+
+            # 选股9：25-9：30之间高开五个点以上（包含），不含st
+            openIncrease = (df['open'][-1] - df['close'][-2])/df['close'][-2] * 100
+            if openIncrease < 5:
+                return
+
+            # todo solve st
+            # if 'st' in self.stockAllCodes[code] or 'ST' in self._stockAllCodes[code]:
+            #     return
+            # self._preCloses[code] = df['close'][-2]
+
+            # 设置结果
+            row = [code, self.sortDf[code]]
+            print(row)
+            self.result.append(row)
 
 
-    # ## 开盘时运行函数
-    # def market_open(context):
-    #
-    #     log.info('函数运行时间(market_open):'+str(context.current_dt.time()))
-    #     if g.zs == 0:
-    #         log.info('大盘择时条件不满足'+str(context.current_dt.time()))
-    #         return
-    #     if g.zs == 1:
-    #         log.info('大盘择时条件满足开始选股'+str(context.current_dt.time()))
-    #         g.oknum += 1
-    #         trader(context)
-    #         g.date_list.append(str(context.current_dt.date()))
-    #         return
-    # def trader(context):
-    #     current_data = get_current_data()
-    #     for _ in g.scu_list:
-    #         dt1 = current_data[_]
-    #         dt2 = get_price(_,end_date=context.previous_date,fields=['close'],count = 1)
-    #         day_change = (dt1.day_open - dt2.close.values[-1]) / dt2.close.values[-1]#计算当日开盘涨幅
-    #         #print(_,day_change,context.current_dt.time())
-    #         if day_change >= 0.04 and day_change <= 0.06:
-    #             tk = get_ticks(_,'%s 9:30:07'%(context.current_dt.date()),  count=2, fields=['time', 'current'])#获取tick数据
-    #             if tk['current'][-1] > dt1.day_open:
-    #                 #print(_,day_change,context.current_dt.time())
-    #                 g.buy_list.append(_)
-    # def after_market_close(context):
-    #     if len(g.buy_list)>0:
-    #         print(g.buy_list)
-    #     if g.date_list:
-    #         log.info(g.date_list)
-    #     g.buy_list = []
+        print()
+
+    # 收盘后运行
+    # def after_market_close():

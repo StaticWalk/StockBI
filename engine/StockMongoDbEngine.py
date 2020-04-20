@@ -113,14 +113,15 @@ class StockMongoDbEngine(object):
             print("更新{}日线数据到MongoDB异常: {}".format(code, str(lastEx) + ', ' + str(lastEx.details)))
             return False
 
-        # update to DB
-        try:
-            for doc in data:
-                flt = {'datetime': doc['datetime']}
-                collection.update_one(flt, {'$set':doc}, upsert=True)
-        except Exception as ex:
-            print("更新{0}日线数据到MongoDB异常:{1}".format(code, str(ex) + ', ' + str(ex.details)))
-            return False
+        if data:
+            # update to DB
+            try:
+                for doc in data:
+                    flt = {'datetime': doc['datetime']}
+                    collection.update_one(flt, {'$set': doc}, upsert=True)
+            except Exception as ex:
+                print("更新{0}日线数据到MongoDB异常:{1}".format(code, str(ex) + ', ' + str(ex.details)))
+                return False
 
         return True
 

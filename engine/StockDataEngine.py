@@ -62,14 +62,15 @@ class StockDataEngine(object):
                 if operator.gt(dates[-1], endDate):
                     endDate = dates[-1]
 
-        data = self.getIndexDaysFromTuSharePro(code, startDate, endDate, sorted(data))
-        if not data: # None(errors) or no data
-            if data is None: # indicate fetching data error from engine point of view
-                print(" 获取{}日线数据[{}, {}]失败".format(code, startDate, endDate))
+        if code in StockData.indexes:
+            df = self.getIndexDaysFromTuSharePro(code, startDate, endDate, sorted(data))
+        elif code in StockData.funds:
+            df = self.getFundDaysFromTuShare(code, startDate, endDate, StockData.dayIndicators)
+        else:
+            df = self.getCodeDaysFromTuSharePro(code, startDate, endDate, StockData.dayIndicators)
 
-        # updat to DB
-        if self.mongoDbEngine.updateDays(code, data):
-            self._updatedCodeCount += 1 # 需要更新的股票（也就是在数据库里的数据不全），并且数据成功写入数据库
+        # update to DB
+        self.mongoDbEngine.updateDays(code, df)
 
     def getIndexDaysFromTuSharePro(self, code, startDate, endDate, fields, name=None):
         """
@@ -77,13 +78,13 @@ class StockDataEngine(object):
         """
         self.startTuSharePro()
 
-        print("TuSharePro: {}, {} ~ {}".format(code, startDate, endDate))
+        print("TuSharePro指数日线数据: {}, {} ~ {}".format(code, startDate, endDate))
 
         proStartDate = startDate.replace('-', '')
         proEndDate = endDate.replace('-', '')
 
         lastEx = None
-        retry = 3
+        retry = 20
         for _ in range(retry):
             try:
                 # ohlcv, amount
@@ -98,7 +99,7 @@ class StockDataEngine(object):
             except Exception as ex:
                 lastEx = ex
                 print("{}({})TuSharePro异常[{}, {}]: {}, retrying...".format(code, name, startDate, endDate, ex))
-                sleep(1)
+                sleep(3)
         else:
             print("{}({})TuSharePro异常[{}, {}]: {}, retried {} times".format(code, name, startDate, endDate, lastEx, retry))
             return None
@@ -120,6 +121,51 @@ class StockDataEngine(object):
 
         return None if df is None else list(df.T.to_dict().values())
 
+    def getFundDaysFromTuShare(self, code, startDate, endDate, fields, name=None):
+        """
+            从tushare获取基金（ETF）日线数据。
+            # !!!TuShare没有提供换手率，复权因子和成交额，所以只能假设。
+            # 策略针对ETF的，需要注意。
+        """
+        tuShareCode = code[:-3]
+        print("TuSharePro基金（ETF）日线数据: {}, {} ~ {}".format(code, startDate, endDate))
+        sleepTime = 3
+        try:
+            try:
+                # 以无复权方式从腾讯获取OHCLV，成交量是手（整数化过）
+                # 此接口支持ETF日线数据
+                df = ts.get_k_data(tuShareCode, startDate, endDate, autype=None, pause=sleepTime)
+                if df is None or df.empty: # If no data, TuShare return None
+                    df = pd.DataFrame(columns=['date', 'open', 'high', 'close', 'low', 'volume'])
+                else:
+                    df = df.sort_index()
+            except Exception as ex:
+                print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
+                return None
+
+            df['volume'] = df['volume']*100
+
+            # !!!TuShare没有提供换手率，复权因子和成交额，所以只能假设。
+            # 策略针对ETF的，需要注意。
+            df['turnover'] = 0
+            df['factor'] = 1
+            df['amount'] = 0
+            df.index.name = None
+
+            # change to Wind's indicators
+            df.rename(columns={'date': 'datetime', 'amount': 'amt', 'turnover': 'turn', 'factor': 'adjfactor'}, inplace=True)
+
+            # 把日期的HH:MM:SS转成 00:00:00
+            df['datetime'] = pd.to_datetime(df['datetime'], format='%Y-%m-%d')
+
+            # select according @fields
+            df = df[['datetime'] + fields]
+        except Exception as ex:
+            print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
+            return None
+
+        return None if df is None else list(df.T.to_dict().values())
+
 
 
 
@@ -129,13 +175,13 @@ class StockDataEngine(object):
         """
         self.startTuSharePro()
 
-        print("TuSharePro: {}, {} ~ {}".format(code, startDate, endDate))
+        print("TuSharePro个股日线数据: {}, {} ~ {}".format(code, startDate, endDate))
 
         proStartDate = startDate.replace('-', '')
         proEndDate = endDate.replace('-', '')
 
         lastEx = None
-        retry = 3
+        retry = 20
         for _ in range(retry):
             try:
                 #
@@ -188,7 +234,9 @@ class StockDataEngine(object):
 
         # select according @fields
         df = df[['datetime'] + fields]
-        return df
+
+        return None if df is None else list(df.T.to_dict().values())
+
 
 
     def getTradeDaysFromTuSharePro(self, startDate, endDate):
