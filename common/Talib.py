@@ -3,24 +3,6 @@ import pandas as pd
 
 
 
-def ATR(highs, lows, closes, timeperiod=14, adjust=True):
-    """
-        @return: list，前@timeperiod个元素的值是NaN。主要因为计算差值多占用了一个元素。
-    """
-    assert len(highs) == len(lows) == len(closes)
-
-    trs = [0]*(len(highs) - 1)
-    for i in range(1, len(highs)):
-        tr = max(highs[i], closes[i-1]) - min(lows[i], closes[i-1])
-        trs[i-1] = tr
-
-    atr = EMA(trs, timeperiod, adjust=adjust)
-
-    atr.insert(0, np.nan)
-    atr[:timeperiod] = [np.nan]*timeperiod
-
-    return atr
-
 def KDJ(highs, lows, closes, N=9, M1=3, M2=3, adjust=True):
     """
         @closes, highs, lows: numpy array

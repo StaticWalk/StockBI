@@ -479,5 +479,3 @@ class StockMongoDbEngine(object):
         if cursor is None: return None
 
         return self.getOneCodeDaysByCursor(cursor, indicators)
-
-

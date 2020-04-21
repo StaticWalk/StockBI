@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 from common.Common import StockData
 from engine.StockMongoDbEngine import StockMongoDbEngine
 
+
 class KDJ1(object):
 
     """
