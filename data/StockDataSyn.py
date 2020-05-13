@@ -12,11 +12,12 @@ class StockDataSyn(object):
         股票日线数据，从TuSharePro获取
         https://tushare.pro/
     """
-    def __init__(self):
-        self.mongoDbEngine = StockMongoDbEngine()
-        self.dataEngine = StockDataEngine(self.mongoDbEngine)
-        self.tradeDataTable = StockTradeDataTable(self.mongoDbEngine, self.dataEngine)
-        self.codeDataTable = StockCodeDataTable(self.mongoDbEngine, self.dataEngine)
+    def __init__(self,logThread):
+        self.logThread = logThread
+        self.mongoDbEngine = StockMongoDbEngine(self.logThread)
+        self.dataEngine = StockDataEngine(self.mongoDbEngine,self.logThread)
+        self.tradeDataTable = StockTradeDataTable(self.mongoDbEngine, self.dataEngine,self.logThread)
+        self.codeDataTable = StockCodeDataTable(self.mongoDbEngine, self.dataEngine,self.logThread)
         self.table = {}
         self.compactTable = []
 
@@ -30,11 +31,11 @@ class StockDataSyn(object):
     def updateHistDays(self, startDate, endDate, indicators, isForced=False, codes=None):
         codes = self.getUpdatedCodes(startDate, endDate, indicators, isForced, codes)
         if codes is None: return
-        print("开始更新{0}只股票(指数,基金)的历史日线数据...".format(len(codes)))
+        self.logThread.print("开始更新{0}只股票(指数,基金)的历史日线数据...".format(len(codes)))
         while codes:
             code = sorted(codes)[0]
             self.dataEngine.updateOneCode(code, codes[code])
-            print("{}更新完成！".format(code))
+            self.logThread.print("{}更新完成！".format(code))
             del codes[code]
 
     def getDaysNotInDb(self, tradeDays, codes, indicators):
@@ -43,7 +44,7 @@ class StockDataSyn(object):
             @indicators: [indicator]
             @return: {code: {indicator: [trade day]}}
         """
-        print('开始从数据库获取日线不存在的数据...')
+        self.logThread.print('开始从数据库获取日线不存在的数据...')
         data = {}
         for code in codes:
             lastEx = None
@@ -54,9 +55,9 @@ class StockDataSyn(object):
                 except Exception as ex:
                     sleep(1)
                     lastEx = ex
-                    print("self._mongoDbEngine.getNotExistingDates异常: {}".format(ex))
+                    self.logThread.print("self._mongoDbEngine.getNotExistingDates异常: {}".format(ex))
             else:
-                print("self._mongoDbEngine.getNotExistingDates异常: {}".format(lastEx))
+                self.logThread.print("self._mongoDbEngine.getNotExistingDates异常: {}".format(lastEx))
                 return None
 
             if temp:
@@ -78,7 +79,7 @@ class StockDataSyn(object):
         if not isForced:
             codes = self.getDaysNotInDb(tradeDays, codes, indicators)
             if not codes:
-                print("历史日线数据已经在数据库")
+                self.logThread.print("历史日线数据已经在数据库")
                 return None
         else:
             newCodes = {}
@@ -90,7 +91,7 @@ class StockDataSyn(object):
 
             codes = newCodes
             if not codes:
-                print("没有日线数据需要更新")
+                self.logThread.print("没有日线数据需要更新")
                 return None
 
         return codes

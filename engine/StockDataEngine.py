@@ -8,10 +8,11 @@ from time import sleep
 
 class StockDataEngine(object):
 
-    def __init__(self, mongoDbEngine):
+    def __init__(self, mongoDbEngine,logThread):
         self.tuSharePro = None
         self.mongoDbEngine = mongoDbEngine
         self._updatedCodeCount = 0  # 更新日线数据的计数器
+        self.logThread = logThread
 
 
     def startTuSharePro(self):
@@ -22,7 +23,7 @@ class StockDataEngine(object):
 
 
     def getStockCodesFromTuSharePro(self):
-        print("从TuSharePro获取股票代码表...")
+        self.logThread.print("从TuSharePro获取股票代码表...")
 
         self.startTuSharePro()
 
@@ -38,13 +39,13 @@ class StockDataEngine(object):
                 break
             except Exception as ex:
                 lastEx = ex
-                print("从TuSharePro获取股票代码表异常: {}, retrying...".format(ex))
+                self.logThread.print("从TuSharePro获取股票代码表异常: {}, retrying...".format(ex))
                 sleep(1)
         else:
-            print("从TuSharePro获取股票代码表异常: {}, retried {} times".format(lastEx, retry))
+            self.logThread.print("从TuSharePro获取股票代码表异常: {}, retried {} times".format(lastEx, retry))
             return None
 
-        print("从TuSharePro获取股票代码表成功")
+        self.logThread.print("从TuSharePro获取股票代码表成功")
         return codes
 
 
@@ -78,7 +79,7 @@ class StockDataEngine(object):
         """
         self.startTuSharePro()
 
-        print("TuSharePro指数日线数据: {}, {} ~ {}".format(code, startDate, endDate))
+        self.logThread.print("TuSharePro指数日线数据: {}, {} ~ {}".format(code, startDate, endDate))
 
         proStartDate = startDate.replace('-', '')
         proEndDate = endDate.replace('-', '')
@@ -98,10 +99,10 @@ class StockDataEngine(object):
                 break
             except Exception as ex:
                 lastEx = ex
-                print("{}({})TuSharePro异常[{}, {}]: {}, retrying...".format(code, name, startDate, endDate, ex))
+                self.logThread.print("{}({})TuSharePro异常[{}, {}]: {}, retrying...".format(code, name, startDate, endDate, ex))
                 sleep(3)
         else:
-            print("{}({})TuSharePro异常[{}, {}]: {}, retried {} times".format(code, name, startDate, endDate, lastEx, retry))
+            self.logThread.print("{}({})TuSharePro异常[{}, {}]: {}, retried {} times".format(code, name, startDate, endDate, lastEx, retry))
             return None
 
         df = dailyDf
@@ -128,7 +129,7 @@ class StockDataEngine(object):
             # 策略针对ETF的，需要注意。
         """
         tuShareCode = code[:-3]
-        print("TuSharePro基金（ETF）日线数据: {}, {} ~ {}".format(code, startDate, endDate))
+        self.logThread.print("TuSharePro基金（ETF）日线数据: {}, {} ~ {}".format(code, startDate, endDate))
         sleepTime = 3
         try:
             try:
@@ -140,7 +141,7 @@ class StockDataEngine(object):
                 else:
                     df = df.sort_index()
             except Exception as ex:
-                print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
+                self.logThread.print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
                 return None
 
             df['volume'] = df['volume']*100
@@ -161,7 +162,7 @@ class StockDataEngine(object):
             # select according @fields
             df = df[['datetime'] + fields]
         except Exception as ex:
-            print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
+            self.logThread.print("从TuShare获取{}({})日线数据[{}, {}]失败: {}".format(code, name, startDate, endDate, ex))
             return None
 
         return None if df is None else list(df.T.to_dict().values())
@@ -175,7 +176,7 @@ class StockDataEngine(object):
         """
         self.startTuSharePro()
 
-        print("TuSharePro个股日线数据: {}, {} ~ {}".format(code, startDate, endDate))
+        self.logThread.print("TuSharePro个股日线数据: {}, {} ~ {}".format(code, startDate, endDate))
 
         proStartDate = startDate.replace('-', '')
         proEndDate = endDate.replace('-', '')
@@ -209,10 +210,10 @@ class StockDataEngine(object):
                 break
             except Exception as ex:
                 lastEx = ex
-                print("{}({})TuSharePro异常[{}, {}]: {}, retrying...".format(code, name, startDate, endDate, ex))
+                self.logThread.print("{}({})TuSharePro异常[{}, {}]: {}, retrying...".format(code, name, startDate, endDate, ex))
                 sleep(1)
         else:
-            print("{}({})TuSharePro异常[{}, {}]: {}, retried {} times".format(code, name, startDate, endDate, lastEx, retry))
+            self.logThread.print("{}({})TuSharePro异常[{}, {}]: {}, retried {} times".format(code, name, startDate, endDate, lastEx, retry))
             return None
 
         # 清洗数据
@@ -220,10 +221,10 @@ class StockDataEngine(object):
         df = df[df['vol'] > 0] # 剔除停牌
         df = df.merge(adjFactorDf, how='left', left_index=True, right_index=True) # 以行情为基准
         if df.isnull().sum().sum() > 0:
-            print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
-            print(df[df.isnull().any(axis=1)])
+            self.logThread.print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
+            self.logThread.print(df[df.isnull().any(axis=1)])
 
-            print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
+            self.logThread.print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
             return None
 
         # change to Wind's indicators
@@ -242,7 +243,7 @@ class StockDataEngine(object):
     def getTradeDaysFromTuSharePro(self, startDate, endDate):
         self.startTuSharePro()
 
-        print("TuSharePro: 获取交易日数据[{} ~ {}]".format(startDate, endDate))
+        self.logThread.print("TuSharePro: 获取交易日数据[{} ~ {}]".format(startDate, endDate))
 
         proStartDate = startDate.replace('-', '')
         proEndDate = endDate.replace('-', '')
@@ -267,10 +268,10 @@ class StockDataEngine(object):
                 return tDays
             except Exception as ex:
                 lastEx = ex
-                print("TuSharePro: 获取交易日数据[{} ~ {}]异常: {}, retrying...".format(startDate, endDate, ex))
+                self.logThread.print("TuSharePro: 获取交易日数据[{} ~ {}]异常: {}, retrying...".format(startDate, endDate, ex))
                 sleep(1)
 
-        print(
+        self.logThread.print(
             "TuSharePro: 获取交易日数据[{} ~ {}]异常: {}, retried {} times".format(startDate, endDate, lastEx, retry)
             )
         return None

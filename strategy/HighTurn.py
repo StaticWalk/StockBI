@@ -15,8 +15,10 @@ class HighTurn(object):
 
     """
 
-    def __init__(self):
-        self.mongoDbEngine = StockMongoDbEngine()
+    def __init__(self,logThread):
+        self.logThread = logThread
+
+        self.mongoDbEngine = StockMongoDbEngine(self.logThread)
 
         self.colNames = ['代码', '名称', '排名', '换手率(%)', '成交额(亿)', '流通股本(亿股)', '昨日换手率(%)']
 
@@ -33,6 +35,7 @@ class HighTurn(object):
     def getDate(self):
         return time.strftime("%Y-%m-%d", time.localtime())
 
+    # 加载数据
     def load(self):
         data = self.mongoDbEngine.getStockCodes()
         for doc in data:
@@ -43,8 +46,9 @@ class HighTurn(object):
                 continue
             temp = temp.reindex(index=temp.index[::-1])
             self.codeDaysDf[code] = temp
-        print("高换手数据加载完成")
+        self.logThread.print("高换手数据加载完成")
 
+    # 重新处理数据
     def processOnData(self):
         for code in self.codeTable:
             df = self.codeDaysDf.get(code)
@@ -57,9 +61,9 @@ class HighTurn(object):
                 preTurn = df.ix[-2, 'turn']
                 float = volume / turn * 100 / 10 ** 8
                 self.tempData[code] = [self.codeTable[code], turn, amt, float, preTurn]
-        print("高换手策略数据处理完成")
+        self.logThread.print("高换手策略数据处理完成")
 
-
+    # 执行策略选股
     def select(self):
         df = pd.DataFrame(self.tempData).T
         start = self.colNames.index('换手率(%)')
@@ -88,10 +92,10 @@ class HighTurn(object):
         df.reset_index(inplace=True)
 
         self.result = df.values.tolist()
-        print("选股完成，输出候选股票信息")
-        print(self.colNames)
+        self.logThread.print("选股完成，输出候选股票信息")
+        self.logThread.print(self.colNames)
         for i in self.result:
-            print(i)
+            self.logThread.print(i)
 
 
     def run(self):

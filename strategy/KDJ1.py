@@ -1,9 +1,5 @@
-import pandas as pd
 import time
-import talib as ta
-import numpy as np
 from common.Talib import *
-from datetime import datetime, date, timedelta
 from common.Common import StockData
 from engine.StockMongoDbEngine import StockMongoDbEngine
 
@@ -20,19 +16,19 @@ class KDJ1(object):
     """
 
     # 初始化函数，设定基准等等
-    def __init__(self):
+    def __init__(self,logThread):
+        self.logThread = logThread
 
         # 使用etf代替指数
         self.etfCode = StockData.zz500Index
         self.indicators = StockData.dayIndicators
-        self.mongoDbEngine = StockMongoDbEngine()
+        self.mongoDbEngine = StockMongoDbEngine(self.logThread)
         self.atr_window = 50  # atr窗口数量
         self.buy_list = []  # 满足买入条件的股票
         # self.tick_list = []  # 要获取tick的标的
         self.date_list = []
         self.sortDf = {}
         self.codeDaysDf = {}
-
         # 设置基准日期、阴线实体比例、50日atr平均值、obos阈值
         self.baseDate = '2020-4-06'
         self.bodyRatio = 0.6
@@ -44,10 +40,12 @@ class KDJ1(object):
         # 是否满足选股条件
         self.isOk = True
 
+
     def getDate(self):
         return time.strftime("%Y-%m-%d", time.localtime())
 
     def load(self):
+
         # 选取中小板和创业板股票，并获取交易信息
         codes = {}
         df = {}
@@ -71,7 +69,7 @@ class KDJ1(object):
         sortedCodes = sorted(df, key=lambda k: df[k], reverse=True)
 
         self.sortDf = sortedCodes[:500]
-        print("kdj数据加载完成")
+        self.logThread.print("kdj数据加载完成")
 
     def run(self):
         # 加载股票日线数据
@@ -117,7 +115,7 @@ class KDJ1(object):
 
         obos = ups.sum() - downs.sum()
         if obos >= self.obos:
-            print("中小板创业板obos: {}".format(obos))
+            self.logThread.print("中小板创业板obos: {}".format(obos))
         else:
             self.isOk = False
 
@@ -132,19 +130,19 @@ class KDJ1(object):
         # 日线级别kdj金叉多区间
         K, D, J = KDJ(df['high'].values, df['low'].values, df['close'].values, adjust=False)
         if K[-1] < D[-1]:
-            print("etf500: KDJ不是金叉区间")
+            self.logThread.print("etf500: KDJ不是金叉区间")
             self.isOk = False
             return
 
         # 上一交易日为大阴线3/5实体
         if df['close'][-2] >= df['open'][-2]:
-            print("etf500: 上一交易日不是阴线")
+            self.logThread.print("etf500: 上一交易日不是阴线")
             self.isOk = False
             return
 
         bodyRatio = abs(df['close'][-2] - df['open'][-2])/abs(df['low'][-2] - df['high'][-2])
         if bodyRatio < self.bodyRatio:
-            print("etf500: 上一交易日阴线实体比例: {}".format(bodyRatio))
+            self.logThread.print("etf500: 上一交易日阴线实体比例: {}".format(bodyRatio))
             self.isOk = False
             return
 
@@ -152,7 +150,7 @@ class KDJ1(object):
         atr = np.array(ATR(df['high'].values, df['low'].values, df['close'].values))
         atrOverMean = float(atr[-1]/atr[-50:].mean())
         if atrOverMean <= self.atrOverMean:
-            print("etf500: 50日atr/平均值: {}".format(atrOverMean))
+            self.logThread.print("etf500: 50日atr/平均值: {}".format(atrOverMean))
             self.isOk = False
             return
 
@@ -171,8 +169,8 @@ class KDJ1(object):
 
             # 设置结果
             row = [code, self.codeDaysDf[code]]
-            print(code)
+            self.logThread.print(code)
             self.result.append(row)
 
         if not len(self.result):
-            print('选股结果为空，无满足条件的股票')
+            self.logThread.print('选股结果为空，无满足条件的股票')

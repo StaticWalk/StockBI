@@ -6,10 +6,11 @@ from engine.StockDataEngine import StockDataEngine
 
 class StockTradeDataTable(object):
 
-    def __init__(self, mongoDbEngine, dataEngine):
+    def __init__(self, mongoDbEngine, dataEngine,logThread):
         self.mongoDbEngine = mongoDbEngine
         self.dataEngine = dataEngine
         self._init()
+        self.logThread = logThread
 
     def _init(self):
         self.table = {}
@@ -17,10 +18,10 @@ class StockTradeDataTable(object):
 
 
     def update(self, startDate, endDate):
-        print('开始更新交易日数据...')
+        self.logThread.print('开始更新交易日数据...')
 
         if self.load([startDate, endDate]):
-            print('交易日数据已在数据库')
+            self.logThread.print('交易日数据已在数据库')
             return True
 
         tradeDays = self.dataEngine.getTradeDaysFromTuSharePro(startDate, endDate)
@@ -30,7 +31,7 @@ class StockTradeDataTable(object):
         if not self.set(startDate, endDate, tradeDays):
             return False
 
-        print('交易日数据更新完成')
+        self.logThread.print('交易日数据更新完成')
         return True
 
     def set(self, startDate, endDate, tradeDays):
@@ -77,7 +78,7 @@ class StockTradeDataTable(object):
 
 
     def load(self, dates):
-        print("开始载入交易日数据{0}...".format(dates))
+        self.logThread.print("开始载入交易日数据{0}...".format(dates))
 
         # 根据不同格式载入
         if len(dates) == 2:
@@ -91,7 +92,7 @@ class StockTradeDataTable(object):
         if not self.set2Table(startDate, endDate, tradeDays):
             return False
 
-        print("交易日数据[{0}, {1}]载入完成".format(startDate, endDate))
+        self.logThread.print("交易日数据[{0}, {1}]载入完成".format(startDate, endDate))
 
         return True
 
@@ -153,7 +154,7 @@ class StockTradeDataTable(object):
                     # index should be built based on continous days
                     if preDate:
                         if Time.getDateStr(preDate, 1) != date:
-                            print("Days in TradeDay Table aren't continous!")
+                            self.logThread.print("Days in TradeDay Table aren't continous!")
                             return False
                     preDate = date
 

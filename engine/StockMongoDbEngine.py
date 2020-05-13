@@ -33,7 +33,7 @@ class StockMongoDbEngine(object):
                 collection.update_one(flt, {'$set': {'name': code['name']}}, upsert=True)
 
         except Exception as ex:
-            print("更新股票代码数据到MongoDB异常:{0}".format(str(ex) + ', ' + str(ex.details)))
+            self.logThread.print("更新股票代码数据到MongoDB异常:{0}".format(str(ex) + ', ' + str(ex.details)))
             return False
 
         return True
@@ -41,16 +41,11 @@ class StockMongoDbEngine(object):
 
 
 
-    def __init__(self):
+    def __init__(self,logThread):
 
         self.client = pymongo.MongoClient(self.host, self.port)
 
-        # DB cache
-        self._dbCache = None
-
-        # todo process on DBcache
-        # if cache:
-        #     self._dbCache = DyGetStockDbCache(self._info, self)
+        self.logThread = logThread
 
     def getNotExistingDates(self, code, dates, indicators):
         """ @dates: sorted [date]
@@ -72,7 +67,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt)
         except Exception as ex:
-            print(
+            self.logThread.print(
                 "MongoDB Exception({0}): find existing dates[{1}, {2}] for {3}".format(str(ex) + ', ' + str(ex.details),
                                                                                        dates[0], dates[-1], code),
                 )
@@ -107,10 +102,10 @@ class StockMongoDbEngine(object):
                 break
             except pymongo.errors.AutoReconnect as ex:
                 lastEx = ex
-                print("更新{}日线数据到MongoDB异常: {}".format(code, str(ex) + ', ' + str(ex.details)))
+                self.logThread.print("更新{}日线数据到MongoDB异常: {}".format(code, str(ex) + ', ' + str(ex.details)))
                 sleep(1)
         else:
-            print("更新{}日线数据到MongoDB异常: {}".format(code, str(lastEx) + ', ' + str(lastEx.details)))
+            self.logThread.print("更新{}日线数据到MongoDB异常: {}".format(code, str(lastEx) + ', ' + str(lastEx.details)))
             return False
 
         if data:
@@ -120,7 +115,7 @@ class StockMongoDbEngine(object):
                     flt = {'datetime': doc['datetime']}
                     collection.update_one(flt, {'$set': doc}, upsert=True)
             except Exception as ex:
-                print("更新{0}日线数据到MongoDB异常:{1}".format(code, str(ex) + ', ' + str(ex.details)))
+                self.logThread.print("更新{0}日线数据到MongoDB异常:{1}".format(code, str(ex) + ', ' + str(ex.details)))
                 return False
 
         return True
@@ -139,10 +134,10 @@ class StockMongoDbEngine(object):
                 flt = {'datetime': date['datetime']}
                 result = collection.update_one(flt, {'$set':{'tradeDay': date['tradeDay']}}, upsert=True)
                 if not (result.acknowledged and (result.matched_count == 1 or result.upserted_id is not None)):
-                    print("更新交易日数据到MongoDB失败: date={}, raw_result={}".format(date, result.raw_result))
+                    self.logThread.print("更新交易日数据到MongoDB失败: date={}, raw_result={}".format(date, result.raw_result))
                     return False
         except Exception as ex:
-            print("更新交易日数据到MongoDB异常: {}".format(str(ex) + ', ' + str(ex.details)))
+            self.logThread.print("更新交易日数据到MongoDB异常: {}".format(str(ex) + ', ' + str(ex.details)))
             return False
         return True
 
@@ -160,7 +155,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt).sort('datetime', pymongo.DESCENDING)
         except Exception as ex:
-            print("MongoDB Exception({0}): @_getTradeDaysByRelativeZero({1})".format(str(ex) + ', ' + str(ex.details), baseDateSave))
+            self.logThread.print("MongoDB Exception({0}): @_getTradeDaysByRelativeZero({1})".format(str(ex) + ', ' + str(ex.details), baseDateSave))
             return None
 
         for d in cursor:
@@ -186,10 +181,10 @@ class StockMongoDbEngine(object):
                 return None
 
             except Exception as ex:
-                print("MongoDB 异常({0}): 获取最新日期".format(str(ex) + ', ' + str(ex.details)))
+                self.logThread.print("MongoDB 异常({0}): 获取最新日期".format(str(ex) + ', ' + str(ex.details)))
 
                 if '无法连接' in str(ex):
-                    print('MongoDB正在启动, 等待60s后重试...')
+                    self.logThread.print('MongoDB正在启动, 等待60s后重试...')
                     sleep(60)
                     continue
 
@@ -213,7 +208,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt).sort('datetime', pymongo.ASCENDING)
         except Exception as ex:
-            print("MongoDB Exception({0}): @_getTradeDaysByRelativePositive({1}, {2})".format(str(ex) + ', ' + str(ex.details), baseDateSave, nSave))
+            self.logThread.print("MongoDB Exception({0}): @_getTradeDaysByRelativePositive({1}, {2})".format(str(ex) + ', ' + str(ex.details), baseDateSave, nSave))
             return None
 
         dates = [baseDate[0]]
@@ -230,7 +225,7 @@ class StockMongoDbEngine(object):
         if date is not None:
             now = datetime.now()
             if now > datetime(now.year, now.month, now.day, 18, 0, 0) and Time.dateCmp(date['datetime'], now) != 0:
-               print("数据库里的最新日期不是今日, 请更新历史日线数据")
+               self.logThread.print("数据库里的最新日期不是今日, 请更新历史日线数据")
                return None
         return dates
 
@@ -251,7 +246,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt).sort('datetime', pymongo.DESCENDING)
         except Exception as ex:
-            print("MongoDB Exception({0}): @_getTradeDaysByRelativeNegative({1}, {2})".format(
+            self.logThread.print("MongoDB Exception({0}): @_getTradeDaysByRelativeNegative({1}, {2})".format(
                 str(ex) + ', ' + str(ex.details), baseDateSave, nSave))
             return None
 
@@ -264,7 +259,7 @@ class StockMongoDbEngine(object):
                 if n == 0:
                     return dates
 
-        print("数据库里没有{0}向前{1}个交易日的日期数据".format(baseDateSave, abs(nSave)))
+        self.logThread.print("数据库里没有{0}向前{1}个交易日的日期数据".format(baseDateSave, abs(nSave)))
         return None
 
 
@@ -294,7 +289,7 @@ class StockMongoDbEngine(object):
         if startDate is not None:
             # some of dates can not be found in DB
             if len(Time.getDates(startDate, endDate)) != cursor.count():
-                print("有些交易日[{0}, {1}]没有在数据库".format(startDate, endDate))
+                self.logThread.print("有些交易日[{0}, {1}]没有在数据库".format(startDate, endDate))
                 return None
 
         tradeDays = []
@@ -319,7 +314,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt)
         except Exception as ex:
-            print("MongoDB Exception({0}): find TradeDays[{1}, {2}]".format(str(ex) + ', ' + str(ex.details), startDate, endDate),
+            self.logThread.print("MongoDB Exception({0}): find TradeDays[{1}, {2}]".format(str(ex) + ', ' + str(ex.details), startDate, endDate),
                              )
             return None
 
@@ -347,7 +342,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt)
         except Exception as ex:
-            print("MongoDB Exception({0}): 查询股票名称表".format(str(ex) + ', ' + str(ex.details))
+            self.logThread.print("MongoDB Exception({0}): 查询股票名称表".format(str(ex) + ', ' + str(ex.details))
                         )
             return None
 
@@ -377,7 +372,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt).sort('datetime', sortMode).limit(1)
         except Exception as ex:
-            print("MongoDB Exception({0}): @_findOneCodeDaysByZeroRelative{1}:{2}, [{3}, {4}]日线数据".format(
+            self.logThread.print("MongoDB Exception({0}): @_findOneCodeDaysByZeroRelative{1}:{2}, [{3}, {4}]日线数据".format(
                 str(ex) + ', ' + str(ex.details),
                 code, name,
                 baseDate, n))
@@ -422,7 +417,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt).sort('datetime', sortMode).limit(n)
         except Exception as ex:
-            print("MongoDB Exception({0}): @_findOneCodeDaysByRelative{1}:{2}, [{3}, {4}]日线数据".format(
+            self.logThread.print("MongoDB Exception({0}): @_findOneCodeDaysByRelative{1}:{2}, [{3}, {4}]日线数据".format(
                 str(ex) + ', ' + str(ex.details),
                 code, name,
                 baseDate, n))
@@ -447,7 +442,7 @@ class StockMongoDbEngine(object):
         try:
             cursor = collection.find(flt)
         except Exception as ex:
-            print(
+            self.logThread.print(
                 "MongoDB Exception({0}): 查找{1}:{2}, [{3}, {4}]日线数据".format(str(ex) + ', ' + str(ex.details),
                                                                            code, name,
                                                                            startDate, endDate))
