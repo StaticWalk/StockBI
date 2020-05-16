@@ -91,10 +91,10 @@ class StockMongoDbEngine(object):
         return data if data else None
 
 
-
+    # 更新数据到数据库
     def updateDays(self, code, data):
         """ @data: [{row0}, {row1}] """
-        # create index
+        # 创建索引
         for _ in range(3):
             try:
                 collection = self.getStockDaysDb()[code]

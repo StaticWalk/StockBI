@@ -48,7 +48,7 @@ class HighTurn(object):
             self.codeDaysDf[code] = temp
         self.logThread.print("高换手数据加载完成")
 
-    # 重新处理数据
+    # 加工数据，计算换手率
     def processOnData(self):
         for code in self.codeTable:
             df = self.codeDaysDf.get(code)
@@ -61,7 +61,7 @@ class HighTurn(object):
                 preTurn = df.ix[-2, 'turn']
                 float = volume / turn * 100 / 10 ** 8
                 self.tempData[code] = [self.codeTable[code], turn, amt, float, preTurn]
-        self.logThread.print("高换手策略数据处理完成")
+        self.logThread.print("高换手策略计算换手率完成")
 
     # 执行策略选股
     def select(self):

@@ -44,6 +44,7 @@ class KDJ1(object):
     def getDate(self):
         return time.strftime("%Y-%m-%d", time.localtime())
 
+    # 提前加载需要用到的数据到内存中
     def load(self):
 
         # 选取中小板和创业板股票，并获取交易信息
@@ -53,9 +54,8 @@ class KDJ1(object):
         data = self.mongoDbEngine.getStockCodes()
         for doc in data:
             codes[doc['code']] = doc['name']
-        # 选取中小创流通市值前500只
+        # 选取中小创流通市值前500只（用中小创代替500成分股信息）
         for code in codes:
-            # 由于DY里没有中证500成分股信息，所以用中小创代替
             indexCode = StockData.getIndex(code)
             if indexCode not in [StockData.cybIndex, StockData.zxbIndex]:
                 continue

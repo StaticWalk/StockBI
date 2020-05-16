@@ -21,7 +21,7 @@ class StockDataEngine(object):
             self.tuSharePro = ts.pro_api()
 
 
-
+    # 从tusharePro第三方获取数据
     def getStockCodesFromTuSharePro(self):
         self.logThread.print("从TuSharePro获取股票代码表...")
 
@@ -48,7 +48,7 @@ class StockDataEngine(object):
         self.logThread.print("从TuSharePro获取股票代码表成功")
         return codes
 
-
+    # 单独更新每只股票
     def updateOneCode(self, code, data):
 
         # get max date range
@@ -63,6 +63,7 @@ class StockDataEngine(object):
                 if operator.gt(dates[-1], endDate):
                     endDate = dates[-1]
 
+        # 区分股票代码，包括指数和基金
         if code in StockData.indexes:
             df = self.getIndexDaysFromTuSharePro(code, startDate, endDate, sorted(data))
         elif code in StockData.funds:
@@ -70,7 +71,7 @@ class StockDataEngine(object):
         else:
             df = self.getCodeDaysFromTuSharePro(code, startDate, endDate, StockData.dayIndicators)
 
-        # update to DB
+        # 更新到数据库
         self.mongoDbEngine.updateDays(code, df)
 
     def getIndexDaysFromTuSharePro(self, code, startDate, endDate, fields, name=None):
@@ -222,7 +223,7 @@ class StockDataEngine(object):
         df = df.merge(adjFactorDf, how='left', left_index=True, right_index=True) # 以行情为基准
         if df.isnull().sum().sum() > 0:
             self.logThread.print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
-            self.logThread.print(df[df.isnull().any(axis=1)])
+            print(df[df.isnull().any(axis=1)])
 
             self.logThread.print("{}({})TuSharePro有些数据缺失[{}, {}]".format(code, name, startDate, endDate))
             return None

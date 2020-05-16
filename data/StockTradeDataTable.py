@@ -16,7 +16,7 @@ class StockTradeDataTable(object):
         self.table = {}
         self.compactTable = []
 
-
+    # 更新交易日表数据
     def update(self, startDate, endDate):
         self.logThread.print('开始更新交易日数据...')
 

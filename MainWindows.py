@@ -102,21 +102,21 @@ class MainWindows(QMainWindow,Ui_MainWindow):
     @pyqtSlot()
     def on_pushButtonSelect1Stock_clicked(self):
         self.logThread.print("高换手选股")
-        # self.highTurn.run()
+        self.highTurn.run()
 
     @pyqtSlot()
     def on_pushButtonSelectStock_clicked(self):
         self.logThread.print("kdj选股")
-        # self.kdj1.run()
+        self.kdj1.run()
 
     @pyqtSlot()
     def on_pushButtonStockData_clicked(self):
         # 日线数据更新已实现
         self.logThread.print("更新日线数据")
 
-        # startData = "2020-04-05"
+        startData = "2020-05-13"
         endData = time.strftime("%Y-%m-%d", time.localtime())
-        # self.stockDataSyn.updateMain(startData,endData)
+        self.stockDataSyn.updateMain(startData,endData)
 
 if __name__ == '__main__':
 

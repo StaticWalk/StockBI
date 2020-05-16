@@ -53,7 +53,8 @@ class StockCodeDataTable(object):
             self._stockCodesTable[code] = name
 
 
-        """ @return: {new code:name}, {code:old name->new name}, {exit code:name} """
+    """ @return: {new code:name}, {code:old name->new name}, {exit code:name} """
+    # 获取新旧表对比结果并同步数据
     def getAndSyncStockCodes(self):
 
         if len(self.Same_CodeNameDict) == len(self._stockCodesTable):
@@ -62,7 +63,7 @@ class StockCodeDataTable(object):
         if ( len(self.Same_CodeNameDict) + len(self.NewName_CodeNameDict) + len(self.NewCode_CodeNameDict) ) == len(self._stockCodesTable):
             return self.NewCode_CodeNameDict, self.NewName_CodeNameDict, None
 
-        # 退市
+        # 退市表
         exit = {}
         for code in self._stockCodesTable:
             if code in self.Same_CodeNameDict: continue
@@ -73,18 +74,18 @@ class StockCodeDataTable(object):
 
         assert(exit)
 
-        # delete exit code from table
+        # 删除退市代码
         for code in exit: del self._stockCodesTable[code]
 
         return self.NewCode_CodeNameDict, self.NewName_CodeNameDict, exit
 
+    # 处理获取到的最新股票代码表
     def set(self, codes):
 
-        # set into object variables
         for code, name in codes.items():
             self.setStockCodes(code, name)
 
-        # get changes and sync
+        # 拿到不同的item，然后同步
         newCode, newName, exit = self.getAndSyncStockCodes()
 
         if newCode or newName:
@@ -93,10 +94,21 @@ class StockCodeDataTable(object):
             if not self.update2Db(dict(newCode, **newNameTemp)):
                 return False
 
-        # print updated result
-        self.logThread.print(newCode, newName, exit)
+        # 打印更新结果
+        self.outStr(newCode, newName, exit)
 
         return True
+
+    def outStr(self,newCode,newName,exit):
+        if newCode :
+            for key, value in newCode.items():
+                self.logThread.print("{}：{}".format(key,value))
+        if newName :
+            for key, value in newName.items():
+                self.logThread.print("{}：{}".format(key,value))
+        if exit :
+            for key, value in exit.items():
+                self.logThread.print("{}:{}".format(key,value))
 
 
     def update2Db(self, codes):

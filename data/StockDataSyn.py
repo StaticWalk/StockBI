@@ -65,14 +65,15 @@ class StockDataSyn(object):
 
         return data if data else None
 
+    # 获取要更新的股票代码和要更新的时间范围
     def getUpdatedCodes(self, startDate, endDate, indicators, isForced, codes=None):
         """
             @return: {code: {indicator: [trade day]}}
         """
-        # get trade days
+        # 获取交易日范围
         tradeDays = self.tradeDataTable.get(startDate, endDate)
 
-        # get stock codes, including indexes and funds
+        # 获取股票代码，包括指数和基金
         codes = self.codeDataTable.stockAllCodesFunds if codes is None else codes
 
         # get not existing from DB

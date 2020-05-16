@@ -44,6 +44,37 @@ def SMA(C, N, M, adjust=True):
     return EWMA(C, alpha, adjust=adjust)
 
 
+def EMA(X, N, adjust=True):
+    """
+        同花顺的EMA
+        数据长度5000以下时，比pandas要快
+        @X: numpy array or list
+        @N: 周期
+        @adjust: pandas里默认是True，这里默认是False跟同花顺保持一致。True时，最近的值权重会大些。
+        @return: list
+    """
+    alpha = 2/(N + 1)
+
+    return EWMA(X, alpha, adjust=adjust)
+
+
+def ATR(highs, lows, closes, timeperiod=14, adjust=True):
+    """
+        @return: list，前@timeperiod个元素的值是NaN。主要因为计算差值多占用了一个元素。
+    """
+    assert len(highs) == len(lows) == len(closes)
+
+    trs = [0]*(len(highs) - 1)
+    for i in range(1, len(highs)):
+        tr = max(highs[i], closes[i-1]) - min(lows[i], closes[i-1])
+        trs[i-1] = tr
+
+    atr = EMA(trs, timeperiod, adjust=adjust)
+
+    atr.insert(0, np.nan)
+    atr[:timeperiod] = [np.nan]*timeperiod
+
+    return atr
 
 def EWMA(X, alpha, adjust=True):
     """
